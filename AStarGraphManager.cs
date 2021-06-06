@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using Pathfinding;
 using Pathfinding.Util;
-using DeadFear.Utility;
 using UnityEngine.SceneManagement;
 using System;
 using WorldStreamer2;

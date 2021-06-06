@@ -1,4 +1,3 @@
-using DeadFear.Utility;
 using Pathfinding;
 using Pathfinding.Util;
 using System;

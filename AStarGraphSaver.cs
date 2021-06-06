@@ -66,8 +66,6 @@ public class AStarGraphSaver : MonoBehaviour
     {
         _data = DesializeTile(textAsset.bytes);
 
-        Opsive.Shared.Events.EventHandler.ExecuteEvent(dfc.EVT_ASTAR_GRAPH_READY, _data);
-
         var graph = AstarPath.active.data.recastGraph;
         if (ValidateData(graph))
         {

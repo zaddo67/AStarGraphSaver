@@ -1,3 +1,4 @@
+using DeadFear.Utility;
 using Pathfinding;
 using Pathfinding.Util;
 using System;
@@ -46,6 +47,12 @@ public class AStarGraphSaver : MonoBehaviour
     [SerializeField] private AssetReference _NavMeshData;
     public TerrainRecast _data;
 
+    // Flag to reload all tiles if the graph was recentered
+    private bool loadAll = false;
+
+    // For testing shift performance
+    private Vector3 testOffset = Vector3.zero;
+
     private void Start()
     {
         // Load the recast graph when this scene is loaded
@@ -65,13 +72,61 @@ public class AStarGraphSaver : MonoBehaviour
     {
         _data = DesializeTile(textAsset.bytes);
 
+        Opsive.Shared.Events.EventHandler.ExecuteEvent(dfc.EVT_ASTAR_GRAPH_READY, _data);
+
         var graph = AstarPath.active.data.recastGraph;
         if (ValidateData(graph))
         {
             CheckGraphPosition(graph);
+
+            AStarGraphManager.AddTerrainData(_data);
+
             LoadGraphTiles(graph);
         }
     }
+
+    #region Testing Methods
+
+    public void TestLoad()
+    {
+        Debug.Log("About to start AStar Load Test");
+        StartCoroutine("TestLoadCoroutine");
+    }
+
+    IEnumerator TestLoadCoroutine()
+    {
+
+        yield return new WaitForSeconds(5f);
+
+        Debug.Log("Execute AStart Load Test");
+
+        var graph = AstarPath.active.data.recastGraph;
+        LoadGraphTiles(graph);
+    }
+
+
+    public void TestShift()
+    {
+        Debug.Log("About to start AStar Shift Test");
+        StartCoroutine("TestShiftCoroutine");
+    }
+
+    IEnumerator TestShiftCoroutine()
+    {
+
+        yield return new WaitForSeconds(5f);
+
+        Debug.Log("Execute AStar Shift Test");
+
+        loadAll = true;
+        var graph = AstarPath.active.data.recastGraph;
+        testOffset += new Vector3(384, 0, 0);
+        CheckGraphPosition(graph);
+        LoadGraphTiles(graph);
+    }
+
+    #endregion Testing Methods
+
 
     /// <summary>
     /// Validate that the World graph is compatible with the terrain graph data
@@ -123,28 +178,47 @@ public class AStarGraphSaver : MonoBehaviour
 
         AstarPath.active.AddWorkItem((context) =>
         {
-
-            // Get the relative offset between the center of the first tile from terrain
-            // And the origin of the RecastGraph
-            float relativeX = _data.tiles[0].CenterX - (graph.forcedBoundsCenter.x - (graph.forcedBoundsSize.x/2));
-            float relativeZ = _data.tiles[0].CenterZ - (graph.forcedBoundsCenter.z - (graph.forcedBoundsSize.z/2));
-
-            // Find the first matching tile in RecastGraph
-            int xOffset = Mathf.FloorToInt(relativeX / graph.TileWorldSizeX);
-            int zOffset = Mathf.FloorToInt(relativeZ / graph.TileWorldSizeZ);
-
             graph.StartBatchTileUpdate();
-            for (int x = 0; x < _data.tileXCount; x++)
+
+            if (loadAll)
             {
-                for (int z = 0; z < _data.tileZCount; z++)
+                var saveData = _data;
+
+                Debug.Log("<color=green>Shift AStar Recast Graph</color>");
+                foreach (var t in AStarGraphManager.AllTiles)
                 {
-                    int i = x + _data.tileXCount * z;
-                    graph.ReplaceTile(x + xOffset, z + zOffset, AStarGraphSaver.Vert3toInt3(_data.tiles[i].verts), _data.tiles[i].tris);
-                    //context.QueueFloodFill();
+                    _data = t;
+                    ReplaceTerrainTiles(graph);
                 }
+
+                _data = saveData;
             }
+            else ReplaceTerrainTiles(graph);
+
             graph.EndBatchTileUpdate();
         });
+    }
+
+    private void ReplaceTerrainTiles(RecastGraph graph)
+    {
+        // Get the relative offset between the center of the first tile from terrain
+        // And the origin of the RecastGraph
+        float relativeX = _data.tiles[0].CenterX - (graph.forcedBoundsCenter.x - (graph.forcedBoundsSize.x / 2));
+        float relativeZ = _data.tiles[0].CenterZ - (graph.forcedBoundsCenter.z - (graph.forcedBoundsSize.z / 2));
+
+        // Find the first matching tile in RecastGraph
+        int xOffset = Mathf.FloorToInt(relativeX / graph.TileWorldSizeX);
+        int zOffset = Mathf.FloorToInt(relativeZ / graph.TileWorldSizeZ);
+
+        for (int x = 0; x < _data.tileXCount; x++)
+        {
+            for (int z = 0; z < _data.tileZCount; z++)
+            {
+                int i = x + _data.tileXCount * z;
+                graph.ReplaceTile(x + xOffset, z + zOffset, AStarGraphSaver.Vert3toInt3(_data.tiles[i].verts), _data.tiles[i].tris);
+                //context.QueueFloodFill();
+            }
+        }
     }
 
     /// <summary>
@@ -156,7 +230,7 @@ public class AStarGraphSaver : MonoBehaviour
     {
 
         // Get Players current position
-        Vector3 playerPos = AStarGraphManager.PlayerPosition;
+        Vector3 playerPos = AStarGraphManager.PlayerPosition + testOffset;
 
         // Calculate Bounds of Central area of Recast Graph, excluding outer tile 
         Bounds playerBounds =
@@ -199,6 +273,8 @@ public class AStarGraphSaver : MonoBehaviour
                 saveY,
                 terrainTileZ + (0.5f * _data.tileZCount * _data.TileWorldSizeZ));
             graph.transform = graph.CalculateTransform();
+
+            loadAll = true;
         });
     }
 
@@ -227,8 +303,8 @@ public class AStarGraphSaver : MonoBehaviour
 
                 // Vertex offset. Applied to all verts
                 Int3 offset = (Int3)new Vector3(
-                    x * data.TileWorldSizeX, 
-                    (graph.forcedBoundsSize.y / 2) - graph.forcedBoundsCenter.y, 
+                    x * data.TileWorldSizeX,
+                    (graph.forcedBoundsSize.y / 2) - graph.forcedBoundsCenter.y,
                     z * data.TileWorldSizeZ);
 
                 data.tiles[x + data.tileXCount * z] = new TileData
@@ -258,7 +334,9 @@ public class AStarGraphSaver : MonoBehaviour
         Stream stream = new MemoryStream(data);
         stream.Seek(0, SeekOrigin.Begin);
         object obj = formatter.Deserialize(stream);
-        return (TerrainRecast)obj;
+        TerrainRecast terrainRecast = (TerrainRecast)obj;
+        terrainRecast.SceneName = this.gameObject.scene.name;
+        return terrainRecast;
     }
 
     /// <summary>
@@ -315,6 +393,7 @@ public class AStarGraphSaver : MonoBehaviour
 public class TerrainRecast
 {
     public string TerrainName;
+    public string SceneName;
     public int tileSizeX;
     public int tileSizeZ;
     public float TileWorldSizeX;

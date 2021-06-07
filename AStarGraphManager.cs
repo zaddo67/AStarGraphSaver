@@ -3,17 +3,12 @@ using System.Collections.Generic;
 using UnityEngine;
 using Pathfinding;
 using Pathfinding.Util;
+using DeadFear.Utility;
 using UnityEngine.SceneManagement;
 using System;
 using WorldStreamer2;
 using System.Linq;
 
-/// <summary>
-/// This Class will need to be set up for your project
-/// It Provides a link to the Player so that the pathfinding can be centered around 
-/// the players movements
-/// This class also keeps track of the recast graphs that should be loaded in the world.
-/// </summary>
 public class AStarGraphManager : MonoBehaviour
 {
 
@@ -41,7 +36,26 @@ public class AStarGraphManager : MonoBehaviour
     {
         _instance = this;
         _streamer = gameObject.GetComponent<StreamerZ>();
+    }
 
+    private void OnEnable()
+    {
+        // TODO: Replace with your event handler to catch Scene Unloading
+        Opsive.Shared.Events.EventHandler.RegisterEvent<Scene>(dfc.EVT_WORLDSTREAMER_SCENE_UNLOADED, OnWorldStreamerSceneUnloaded);
+    }
+
+
+    private void OnDisable()
+    {
+        // TODO: Replace with your event handler to catch Scene Unloading
+        Opsive.Shared.Events.EventHandler.UnregisterEvent<Scene>(dfc.EVT_WORLDSTREAMER_SCENE_UNLOADED, OnWorldStreamerSceneUnloaded);
+    }
+
+
+    private void OnWorldStreamerSceneUnloaded(Scene scene)
+    {
+        _instance.terrainRecasts.RemoveAll(r => r.SceneName == scene.name);
+        Debug.Log($"Remove TerrainReacast: {scene.name}");
     }
 
     public static void AddTerrainData(TerrainRecast data)
@@ -59,5 +73,11 @@ public class AStarGraphManager : MonoBehaviour
 
         _instance.terrainRecasts.RemoveAll(r => r.TerrainName == data.TerrainName);
     }
+
+    public static List<TerrainRecast> AllTiles
+    {
+        get { return Instance.terrainRecasts; }
+    }
+
 
 }

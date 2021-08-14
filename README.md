@@ -1,6 +1,6 @@
 # AStarGraphSaver
-A utility to save an A* Pathfinding Project Recast graph and Load into a Larger Scenes Graph
+Serialise Recast graph and Deserialise. Support for moving world origin.
 
 # AStarGraphEditor
-Convert Recast graph to mesh in unity editor and then back to recast graph
-AStarGraphSaver: Serialise Recast graph and Deserialise. Support for moving world origin.
+Convert Recast graph to a mesh in unity editor. The mesh can then be edited before converting replacing the original recast graph with the edited mesh.
+
